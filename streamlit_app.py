@@ -8,7 +8,9 @@ import pymongo
 from bson.objectid import ObjectId
 
 # Force sys.path to include the project root so we can import 'app'
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+project_root = os.path.abspath(os.path.dirname(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from app.model.question import Question
 from app.utils.pdf_generator import PDFGenerator

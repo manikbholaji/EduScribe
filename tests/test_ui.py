@@ -7,7 +7,9 @@ from unittest.mock import patch, MagicMock
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # Add the project root to the path so we can import 'app'
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from PyQt6.QtWidgets import QApplication, QMessageBox, QFileDialog, QDialog
 from PyQt6.QtTest import QTest

@@ -9,7 +9,9 @@ from bson.objectid import ObjectId
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # Add the project root to the path so we can import 'app' and 'streamlit_app'
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Mock streamlit module before importing streamlit_app to avoid streamlit context exceptions in unit tests
 mock_st = MagicMock()

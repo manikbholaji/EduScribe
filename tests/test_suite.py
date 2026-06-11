@@ -3,7 +3,9 @@ import os
 import sys
 
 # Add the project root to the path so we can import 'app'
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from app.model.question import Question
 from app.utils.pdf_generator import PDFGenerator
