@@ -144,7 +144,7 @@ def get_db_connection():
 def save_paper_to_mongodb(paper_id, metadata, questions):
     """Saves or updates an exam paper in MongoDB."""
     database, _ = get_db_connection()
-    if not database:
+    if database is None:
         return False, "Database is offline."
         
     doc = {
@@ -169,7 +169,7 @@ def save_paper_to_mongodb(paper_id, metadata, questions):
 def load_paper_from_mongodb(paper_id):
     """Loads a specific exam paper from MongoDB."""
     database, _ = get_db_connection()
-    if not database:
+    if database is None:
         return None
     try:
         doc = database.exam_papers.find_one({"_id": ObjectId(paper_id)})
@@ -180,7 +180,7 @@ def load_paper_from_mongodb(paper_id):
 def list_papers_from_mongodb():
     """Lists summary info of all saved exam papers in MongoDB."""
     database, _ = get_db_connection()
-    if not database:
+    if database is None:
         return []
     try:
         cursor = database.exam_papers.find({}, {"school_name": 1, "exam_name": 1, "last_saved": 1}).sort("last_saved", -1)
