@@ -1,0 +1,67 @@
+\documentclass[11pt, a4paper]{article}
+
+% --- COMPATIBILITY / PREVIEW BLOCK ---
+\providecommand{\VAR}[1]{\texttt{\detokenize{#1}}}
+\providecommand{\BLOCK}[1]{}
+% -------------------------------------
+
+% Essential Packages
+\usepackage[T1]{fontenc}      
+\usepackage{lmodern}          
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{microtype}        
+
+% Page Layout
+\geometry{top=2cm, bottom=2cm, left=2cm, right=2cm}
+
+% Header Information
+\title{\textbf{ \VAR{school_name} } \\ \large \VAR{exam_name} }
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+% Exam Details Header
+\noindent
+\textbf{Time Allowed:} \VAR{time_allowed} \hfill \textbf{Maximum Marks:} \VAR{max_marks}
+
+\vspace{0.3cm}
+\hrule
+\vspace{0.5cm}
+
+\section*{General Instructions:}
+\begin{enumerate}[leftmargin=*]
+    \BLOCK{ for instr in instructions }
+    \item \VAR{instr}
+    \BLOCK{ endfor }
+\end{enumerate}
+
+\section*{Questions}
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+    \BLOCK{ for q in questions }
+    \item \VAR{q.text} 
+    \hfill \textbf{[\VAR{q.marks}]}
+    
+    \BLOCK{ if q.image_path }
+        \IfFileExists{\VAR{q.image_path}}{
+            \par
+            \begin{center}
+                \includegraphics[width=0.4\textwidth, keepaspectratio]{\VAR{q.image_path}}
+            \end{center}
+        }{}
+    \BLOCK{ endif }
+    
+    \vspace{0.5cm}
+    \BLOCK{ endfor }
+\end{enumerate}
+
+\end{document}

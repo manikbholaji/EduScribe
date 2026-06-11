@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+pyvenv.cfg
+.env
+
+# PyInstaller / Build
+build/
+dist/
+EduScribe.spec
+
+# Generated Exam Output Files (Root only)
+/exam_paper*.tex
+/exam_paper*.pdf
+/exam_paper*.aux
+/exam_paper*.log
+/test_output.tex
+/test_export.tex
+/*.pdf
+/*.tex
+/*.aux
+/*.log
+/assets/templates/exam_paper*.tex
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
