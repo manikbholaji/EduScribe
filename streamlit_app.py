@@ -91,6 +91,47 @@ st.markdown("""
         color: #2f3640;
         margin-bottom: 1.5rem;
     }
+    
+    /* Responsive Tablet & Mobile Styling */
+    @media (max-width: 1024px) {
+        .main-header h1 {
+            font-size: 1.8rem !important;
+        }
+        .main-header p {
+            font-size: 1rem !important;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .main-header {
+            padding: 1.2rem !important;
+            margin-bottom: 1rem !important;
+            border-radius: 8px !important;
+        }
+        .main-header h1 {
+            font-size: 1.5rem !important;
+        }
+        .main-header p {
+            font-size: 0.9rem !important;
+        }
+        /* Stack column layouts vertically on narrow viewports for easy touch targets */
+        [data-testid="column"] {
+            width: 100% !important;
+            min-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .block-container {
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-top: 1rem !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -362,8 +403,8 @@ def format_question_to_latex(q):
 def get_question_marks(q):
     q_type = q.get("type", "Standard")
     if q_type in ["Case Study", "Subparts"]:
-        return sum(sub.get("marks", 1) for sub in q.get("subparts", []))
-    return q.get("marks", 1)
+        return sum(int(sub.get("marks", 1)) for sub in q.get("subparts", []))
+    return int(q.get("marks", 1))
 
 def compile_pdf_from_state(school_name, exam_name, time_allowed, instructions, questions, subject=None):
     """Generates LaTeX code, compiles to PDF locally, and returns bytes."""
