@@ -188,9 +188,10 @@ class MainWindow(QMainWindow):
             
         exam_metadata = dialog.get_data()
         
-        # Add dynamic max marks calculation
+        # Add dynamic max marks calculation and subject
         total_marks = sum(q.model.marks for q in self.questions)
         exam_metadata["max_marks"] = str(total_marks)
+        exam_metadata["subject"] = self.subject_combo.currentText()
         exam_metadata["questions"] = [q.model for q in self.questions]
 
         # 2. Select Save Location

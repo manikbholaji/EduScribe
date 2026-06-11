@@ -152,6 +152,7 @@ def save_paper_to_mongodb(paper_id, metadata, questions):
     doc = {
         "school_name": metadata["school_name"],
         "exam_name": metadata["exam_name"],
+        "subject": metadata.get("subject", "Mathematics"),
         "time_allowed": metadata["time_allowed"],
         "instructions": metadata["instructions"],
         "questions": questions,
@@ -185,8 +186,8 @@ def list_papers_from_mongodb():
     if database is None:
         return []
     try:
-        cursor = database.exam_papers.find({}, {"school_name": 1, "exam_name": 1, "last_saved": 1}).sort("last_saved", -1)
-        return [{"id": str(doc["_id"]), "school_name": doc.get("school_name", "Unnamed"), "exam_name": doc.get("exam_name", "Unnamed"), "last_saved": doc.get("last_saved")} for doc in cursor]
+        cursor = database.exam_papers.find({}, {"school_name": 1, "exam_name": 1, "subject": 1, "last_saved": 1}).sort("last_saved", -1)
+        return [{"id": str(doc["_id"]), "school_name": doc.get("school_name", "Unnamed"), "exam_name": doc.get("exam_name", "Unnamed"), "subject": doc.get("subject", "Mathematics"), "last_saved": doc.get("last_saved")} for doc in cursor]
     except Exception:
         return []
 
@@ -270,6 +271,8 @@ if "school_name" not in st.session_state:
     st.session_state.school_name = "EduScribe Academy"
 if "exam_name" not in st.session_state:
     st.session_state.exam_name = "Mid-Term Examination"
+if "subject" not in st.session_state:
+    st.session_state.subject = "Mathematics"
 if "time_allowed" not in st.session_state:
     st.session_state.time_allowed = "3 Hours"
 if "instructions" not in st.session_state:
@@ -282,7 +285,7 @@ if "next_q_id" not in st.session_state:
 
 # --- COMPILATION HELPER ---
 
-def compile_pdf_from_state(school_name, exam_name, time_allowed, instructions, questions):
+def compile_pdf_from_state(school_name, exam_name, time_allowed, instructions, questions, subject=None):
     """Generates LaTeX code, compiles to PDF locally, and returns bytes."""
     temp_files = []
     latex_questions = []
@@ -317,6 +320,7 @@ def compile_pdf_from_state(school_name, exam_name, time_allowed, instructions, q
     context = {
         "school_name": school_name,
         "exam_name": exam_name,
+        "subject": subject,
         "time_allowed": time_allowed,
         "max_marks": str(total_marks),
         "instructions": clean_instr,
@@ -405,9 +409,16 @@ with col_main:
         with col_ex:
             st.session_state.exam_name = st.text_input("Exam Name", value=st.session_state.exam_name)
             
-        col_time, col_dummy = st.columns([1, 1])
+        col_time, col_subj = st.columns(2)
         with col_time:
             st.session_state.time_allowed = st.text_input("Time Allowed", value=st.session_state.time_allowed)
+        with col_subj:
+            subject_options = ["Mathematics", "Physics", "Chemistry", "Biology", "General Science", "English Grammar", "Computer Science", "General Knowledge"]
+            if st.session_state.subject in subject_options:
+                subj_idx = subject_options.index(st.session_state.subject)
+            else:
+                subj_idx = 0
+            st.session_state.subject = st.selectbox("Subject", options=subject_options, index=subj_idx)
             
         st.session_state.instructions = st.text_area(
             "Instructions (one per line)", 
@@ -426,9 +437,16 @@ with col_main:
             
             col_ai_subj, col_ai_type = st.columns(2)
             with col_ai_subj:
+                subject_options = ["Mathematics", "Physics", "Chemistry", "Biology", "General Science", "English Grammar", "Computer Science", "General Knowledge"]
+                if st.session_state.subject in subject_options:
+                    ai_subj_idx = subject_options.index(st.session_state.subject)
+                else:
+                    ai_subj_idx = 0
                 ai_subject = st.selectbox(
                     "Subject", 
-                    options=["Mathematics", "Physics", "Chemistry", "Biology", "General Science", "English Grammar", "Computer Science", "General Knowledge"]
+                    options=subject_options,
+                    index=ai_subj_idx,
+                    key="ai_assistant_subject"
                 )
             with col_ai_type:
                 ai_type = st.selectbox(
@@ -438,7 +456,28 @@ with col_main:
                 
             col_ai_topic, col_ai_diff = st.columns(2)
             with col_ai_topic:
-                ai_topic = st.text_input("Topic / Concept", placeholder="e.g. Quadratic Equations, Photosynthesis, Python Lists")
+                DEFAULT_TOPICS = {
+                    "Mathematics": "Quadratic Equations",
+                    "Physics": "Newton's Laws of Motion",
+                    "Chemistry": "Chemical Bonding",
+                    "Biology": "Photosynthesis",
+                    "General Science": "Water Cycle",
+                    "English Grammar": "Active and Passive Voice",
+                    "Computer Science": "Python Lists",
+                    "General Knowledge": "Solar System"
+                }
+                default_topic = DEFAULT_TOPICS.get(ai_subject, "")
+                if "last_ai_subject" not in st.session_state or st.session_state.last_ai_subject != ai_subject:
+                    st.session_state.last_ai_subject = ai_subject
+                    st.session_state.ai_topic_val = default_topic
+                
+                ai_topic = st.text_input(
+                    "Topic / Concept",
+                    value=st.session_state.ai_topic_val,
+                    placeholder="e.g. Quadratic Equations, Photosynthesis, Python Lists",
+                    key="ai_topic_input"
+                )
+                st.session_state.ai_topic_val = ai_topic
             with col_ai_diff:
                 ai_difficulty = st.select_slider("Difficulty Level", options=["Easy", "Medium", "Hard"])
                 
@@ -550,8 +589,9 @@ with col_main:
             
             # Real-time Preview Area
             if q["text"].strip():
-                st.markdown("**Preview:**")
-                st.write(q["text"])  # Streamlit auto-renders LaTeX between $ symbols
+                st.markdown("<div style='color: #7f8c8d; font-size: 0.85rem; font-weight: 600; margin-top: 5px; margin-bottom: 2px;'>Processed LaTeX Preview:</div>", unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.write(q["text"])
                 
             col_m, col_img, col_del, col_ai = st.columns([1.5, 3, 2, 2])
             with col_m:
@@ -698,6 +738,7 @@ with col_sidebar:
                     metadata = {
                         "school_name": st.session_state.school_name,
                         "exam_name": save_name,
+                        "subject": st.session_state.subject,
                         "time_allowed": st.session_state.time_allowed,
                         "instructions": st.session_state.instructions
                     }
@@ -720,7 +761,7 @@ with col_sidebar:
         st.markdown("### 📂 Load from Cloud")
         saved_papers = list_papers_from_mongodb()
         if saved_papers:
-            paper_options = {f"{p['school_name']} - {p['exam_name']} ({p['last_saved'].strftime('%Y-%m-%d %H:%M')})": p["id"] for p in saved_papers}
+            paper_options = {f"{p['school_name']} - {p['exam_name']} [{p.get('subject', 'Mathematics')}] ({p['last_saved'].strftime('%Y-%m-%d %H:%M')})": p["id"] for p in saved_papers}
             selected_paper_str = st.selectbox("Select saved paper:", options=list(paper_options.keys()))
             
             if st.button("📂 Load Selected Paper", use_container_width=True):
@@ -730,6 +771,7 @@ with col_sidebar:
                     st.session_state.current_paper_id = str(paper_data["_id"])
                     st.session_state.school_name = paper_data.get("school_name", "")
                     st.session_state.exam_name = paper_data.get("exam_name", "")
+                    st.session_state.subject = paper_data.get("subject", "Mathematics")
                     st.session_state.time_allowed = paper_data.get("time_allowed", "")
                     st.session_state.instructions = paper_data.get("instructions", "")
                     st.session_state.questions = paper_data.get("questions", [])
@@ -760,7 +802,8 @@ with col_sidebar:
                     st.session_state.exam_name,
                     st.session_state.time_allowed,
                     st.session_state.instructions,
-                    st.session_state.questions
+                    st.session_state.questions,
+                    subject=st.session_state.subject
                 )
                 
                 if tex_bytes:

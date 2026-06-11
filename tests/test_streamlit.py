@@ -248,6 +248,77 @@ class TestEduScribeStreamlit(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("JSON Parsing Error", result)
 
+    @patch('streamlit_app.PDFGenerator')
+    def test_compile_pdf_from_state_with_subject(self, mock_generator_class):
+        """Test PDF and LaTeX generation workflow with subject metadata included."""
+        mock_generator = MagicMock()
+        mock_generator.generate_tex.return_value = (True, "Success")
+        mock_generator.compile_to_pdf.return_value = (True, "Output PDF file")
+        mock_generator_class.return_value = mock_generator
+        
+        mock_file = MagicMock()
+        mock_file.read.side_effect = [b"Fake LaTeX Data", b"Fake PDF Data"]
+        
+        questions = [{"id": 1, "text": "What is $x$?", "marks": 2, "image_base64": None, "image_name": None}]
+        
+        with patch('builtins.open', return_value=MagicMock(__enter__=MagicMock(return_value=mock_file))):
+            with patch('os.path.exists', return_value=True):
+                with patch('os.remove'):
+                    pdf_bytes, tex_bytes, err = streamlit_app.compile_pdf_from_state(
+                        "Test School",
+                        "Test Exam",
+                        "1 Hour",
+                        "Instruction 1",
+                        questions,
+                        subject="Physics"
+                    )
+                    self.assertEqual(tex_bytes, b"Fake LaTeX Data")
+                    
+                    # Verify generator calls includes subject
+                    mock_generator.generate_tex.assert_called_once()
+                    context = mock_generator.generate_tex.call_args[0][0]
+                    self.assertEqual(context["subject"], "Physics")
+
+    @patch('streamlit_app.db')
+    def test_save_and_list_paper_with_subject(self, mock_db):
+        """Test saving and listing paper stores and retrieves subject metadata."""
+        import datetime
+        mock_collection = MagicMock()
+        mock_collection.insert_one.return_value = MagicMock(inserted_id="507f1f77bcf86cd799439011")
+        
+        # Mocking find cursor for list_papers
+        mock_cursor = MagicMock()
+        mock_cursor.sort.return_value = [
+            {
+                "_id": ObjectId("507f1f77bcf86cd799439011"),
+                "school_name": "Test School",
+                "exam_name": "Finals",
+                "subject": "Chemistry",
+                "last_saved": datetime.datetime(2026, 6, 11, 12, 0, 0)
+            }
+        ]
+        mock_collection.find.return_value = mock_cursor
+        mock_db.exam_papers = mock_collection
+        
+        metadata = {
+            "school_name": "Test School",
+            "exam_name": "Finals",
+            "subject": "Chemistry",
+            "time_allowed": "3 Hours",
+            "instructions": "Follow rules."
+        }
+        
+        # Test Save
+        success, paper_id = streamlit_app.save_paper_to_mongodb(None, metadata, [])
+        self.assertTrue(success)
+        inserted_doc = mock_collection.insert_one.call_args[0][0]
+        self.assertEqual(inserted_doc["subject"], "Chemistry")
+        
+        # Test List
+        papers = streamlit_app.list_papers_from_mongodb()
+        self.assertEqual(len(papers), 1)
+        self.assertEqual(papers[0]["subject"], "Chemistry")
+
 if __name__ == '__main__':
     # Remove streamlit module mock before running other tests in future runs
     if 'streamlit' in sys.modules:

@@ -209,9 +209,10 @@ class TestEduScribeUI(unittest.TestCase):
             mock_save_dialog.assert_called_once()
             mock_generate_tex.assert_called_once()
             
-            # Verify total marks calculation and questions passing
+            # Verify total marks calculation, subject, and questions passing
             metadata = mock_generate_tex.call_args[0][0]
             self.assertEqual(metadata["max_marks"], "10")
+            self.assertEqual(metadata["subject"], "General")
             self.assertEqual(len(metadata["questions"]), 1)
             self.assertEqual(metadata["questions"][0].text, "Test Question content")
 
