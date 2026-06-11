@@ -118,6 +118,8 @@ class MainWindow(QMainWindow):
             return
 
         self.statusBar().showMessage("Processing OCR... Please wait...")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
         
         success, result = OCRService.extract_text(file_path)
         

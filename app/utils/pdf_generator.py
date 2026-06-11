@@ -53,17 +53,34 @@ class PDFGenerator:
         Tries to compile the .tex file to PDF using pdflatex.
         """
         try:
-            # Added shell=False for security
-            cmd = ['pdflatex', '-interaction=nonstopmode', tex_file]
+            # Resolve absolute path and target directory
+            abs_tex_path = os.path.abspath(tex_file)
+            work_dir = os.path.dirname(abs_tex_path)
+            tex_filename = os.path.basename(abs_tex_path)
+            
+            # Run pdflatex in the folder where the .tex file lives
+            cmd = ['pdflatex', '-interaction=nonstopmode', tex_filename]
             
             result = subprocess.run(
                 cmd, 
                 check=True, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                cwd=work_dir
             )
-            return True, tex_file.replace(".tex", ".pdf")
+            
+            # Clean up intermediate LaTeX files (.aux and .log) on success
+            base_name = os.path.splitext(tex_filename)[0]
+            for ext in [".aux", ".log"]:
+                temp_file = os.path.join(work_dir, base_name + ext)
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except Exception:
+                        pass
+                        
+            return True, abs_tex_path.replace(".tex", ".pdf")
         except FileNotFoundError:
             return False, "pdflatex not found. Please install MiKTeX or TeX Live and ensure it's in your PATH."
         except subprocess.CalledProcessError as e:

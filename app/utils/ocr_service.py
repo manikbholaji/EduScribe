@@ -60,7 +60,10 @@ class OCRService:
         # REAL CALL (Will fail without valid keys)
         try:
             response = requests.post(OCRService.API_URL, json=data, headers=headers, timeout=10)
-            response_json = response.json()
+            try:
+                response_json = response.json()
+            except ValueError:
+                return False, f"Server Error (Status {response.status_code}): Invalid response from OCR service."
             
             if "text" in response_json:
                 return True, response_json["text"]

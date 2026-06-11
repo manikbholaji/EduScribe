@@ -82,12 +82,13 @@ class QuestionWidget(QWidget):
         self.content_changed.emit()
 
     def attach_image(self):
+        import os
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Image", "", "Images (*.png *.jpg *.jpeg *.bmp)"
         )
         if file_path:
             self.model.image_path = file_path
-            self.lbl_image_status.setText(f"Image: {file_path.split('/')[-1]}")
+            self.lbl_image_status.setText(f"Image: {os.path.basename(file_path)}")
             self.content_changed.emit()
 
     def request_delete(self):
