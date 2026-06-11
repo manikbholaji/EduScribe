@@ -165,6 +165,87 @@ class TestEduScribeStreamlit(unittest.TestCase):
         self.assertEqual(doc, mock_doc)
         mock_collection.find_one.assert_called_once_with({"_id": ObjectId("507f1f77bcf86cd799439011")})
 
+    # --- PUTER AI TESTS ---
+
+    @patch('streamlit_app.st.secrets')
+    def test_get_puter_token_secrets(self, mock_secrets):
+        """Test reading Puter token from Streamlit secrets."""
+        # Case A: Directly as PUTER_TOKEN key
+        mock_secrets.__contains__.side_effect = lambda k: k == "PUTER_TOKEN"
+        mock_secrets.__getitem__.side_effect = lambda k: "direct-token-value" if k == "PUTER_TOKEN" else KeyError()
+        
+        self.assertEqual(streamlit_app.get_puter_token(), "direct-token-value")
+        
+        # Case B: Nested under puter.token
+        mock_secrets.reset_mock()
+        mock_secrets.__contains__.side_effect = lambda k: k == "puter"
+        mock_secrets.__getitem__.side_effect = lambda k: {"token": "nested-token-value"} if k == "puter" else KeyError()
+        
+        self.assertEqual(streamlit_app.get_puter_token(), "nested-token-value")
+
+    @patch('requests.post')
+    @patch('streamlit_app.get_puter_token')
+    def test_call_puter_ai_success(self, mock_get_token, mock_post):
+        """Test successful Puter AI request parsing."""
+        mock_get_token.return_value = "fake-token"
+        
+        # Mock successful API response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "Generated Response"}}]
+        }
+        mock_post.return_value = mock_response
+        
+        success, response = streamlit_app.call_puter_ai("Hello AI")
+        self.assertTrue(success)
+        self.assertEqual(response, "Generated Response")
+        
+        # Verify request headers and URL
+        mock_post.assert_called_once()
+        headers = mock_post.call_args[1]["headers"]
+        self.assertEqual(headers["Authorization"], "Bearer fake-token")
+
+    @patch('requests.post')
+    @patch('streamlit_app.get_puter_token')
+    def test_call_puter_ai_failure(self, mock_get_token, mock_post):
+        """Test failed Puter AI request handling."""
+        mock_get_token.return_value = "fake-token"
+        
+        # Mock error response
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.json.return_value = {
+            "error": {"message": "Invalid model specified"}
+        }
+        mock_post.return_value = mock_response
+        
+        success, response = streamlit_app.call_puter_ai("Hello AI")
+        self.assertFalse(success)
+        self.assertIn("Invalid model specified", response)
+
+    def test_parse_generated_questions(self):
+        """Test robust parsing of generated questions in various JSON shapes."""
+        # Clean JSON array
+        success, result = streamlit_app.parse_generated_questions('[{"text": "Q1", "marks": 2}]')
+        self.assertTrue(success)
+        self.assertEqual(result, [{"text": "Q1", "marks": 2}])
+        
+        # JSON array enclosed in markdown ticks
+        success, result = streamlit_app.parse_generated_questions('```json\n[{"text": "Q2", "marks": 5}]\n```')
+        self.assertTrue(success)
+        self.assertEqual(result, [{"text": "Q2", "marks": 5}])
+        
+        # JSON dictionary with a "questions" key
+        success, result = streamlit_app.parse_generated_questions('{"questions": [{"text": "Q3", "marks": 10}]}')
+        self.assertTrue(success)
+        self.assertEqual(result, [{"text": "Q3", "marks": 10}])
+        
+        # Invalid JSON
+        success, result = streamlit_app.parse_generated_questions('invalid-json')
+        self.assertFalse(success)
+        self.assertIn("JSON Parsing Error", result)
+
 if __name__ == '__main__':
     # Remove streamlit module mock before running other tests in future runs
     if 'streamlit' in sys.modules:

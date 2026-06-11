@@ -189,6 +189,77 @@ def list_papers_from_mongodb():
         return []
 
 
+def get_puter_token():
+    """Tries to read the Puter token from secrets or environment variables."""
+    if "PUTER_TOKEN" in st.secrets:
+        return st.secrets["PUTER_TOKEN"]
+    elif "puter" in st.secrets and "token" in st.secrets["puter"]:
+        return st.secrets["puter"]["token"]
+    return os.environ.get("PUTER_TOKEN")
+
+def call_puter_ai(prompt, system_instruction="You are an expert educational AI assistant.", model="gpt-4o-mini"):
+    """Sends a chat completions request to Puter's OpenAI-compatible endpoint."""
+    token = get_puter_token()
+    if not token:
+        return False, "Puter API token is missing. Please add `PUTER_TOKEN` in your Streamlit secrets."
+        
+    url = "https://api.puter.com/puterai/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7
+    }
+    
+    try:
+        import requests
+        response = requests.post(url, json=payload, headers=headers, timeout=25)
+        
+        if response.status_code == 200:
+            response_json = response.json()
+            if "choices" in response_json and len(response_json["choices"]) > 0:
+                return True, response_json["choices"][0]["message"]["content"]
+            return False, f"Unexpected API response format: {response_json}"
+        else:
+            try:
+                err_msg = response.json().get("error", {}).get("message", "Unknown error")
+            except Exception:
+                err_msg = response.text
+            return False, f"Puter AI Error (Status {response.status_code}): {err_msg}"
+    except Exception as e:
+        return False, f"Connection Failure: {str(e)}"
+
+def parse_generated_questions(ai_response):
+    """Robustly extracts and parses a JSON list of questions from AI response."""
+    import json
+    text = ai_response.strip()
+    
+    # Strip markdown block formatting if present
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    
+    try:
+        data = json.loads(text)
+        if isinstance(data, list):
+            return True, data
+        elif isinstance(data, dict) and "questions" in data:
+            return True, data["questions"]
+        return False, "Parsed JSON was not a list of questions."
+    except Exception as e:
+        return False, f"JSON Parsing Error: {str(e)}. Response was: {ai_response[:250]}..."
+
+
 # --- STATE INITIALIZATION ---
 
 if "questions" not in st.session_state:
@@ -341,6 +412,112 @@ with col_main:
             help="Enter instructions. Separate distinct instructions using newlines."
         )
 
+    # A2. AI Question Assistant Section
+    with st.expander("🤖 AI Question Assistant (Powered by Puter)", expanded=False):
+        # Check if puter token is available
+        puter_token = get_puter_token()
+        if not puter_token:
+            st.warning("⚠️ Puter API Token is not configured. Add `PUTER_TOKEN` to your Streamlit secrets to enable AI generation.")
+        else:
+            st.markdown("Generate fresh exam questions with step-by-step LaTeX formatting using advanced AI models.")
+            
+            col_ai_subj, col_ai_type = st.columns(2)
+            with col_ai_subj:
+                ai_subject = st.selectbox(
+                    "Subject", 
+                    options=["Mathematics", "Physics", "Chemistry", "Biology", "General Science", "English Grammar", "Computer Science", "General Knowledge"]
+                )
+            with col_ai_type:
+                ai_type = st.selectbox(
+                    "Question Type", 
+                    options=["Multiple Choice (MCQ)", "Short Answer", "Long/Detailed Answer", "Fill in the Blanks", "Numerical Problem"]
+                )
+                
+            col_ai_topic, col_ai_diff = st.columns(2)
+            with col_ai_topic:
+                ai_topic = st.text_input("Topic / Concept", placeholder="e.g. Quadratic Equations, Photosynthesis, Python Lists")
+            with col_ai_diff:
+                ai_difficulty = st.select_slider("Difficulty Level", options=["Easy", "Medium", "Hard"])
+                
+            col_ai_cnt, col_ai_mrk, col_ai_mod = st.columns(3)
+            with col_ai_cnt:
+                ai_count = st.number_input("Count", min_value=1, max_value=5, value=3)
+            with col_ai_mrk:
+                ai_marks = st.number_input("Marks per Question", min_value=1, max_value=20, value=5)
+            with col_ai_mod:
+                ai_model = st.selectbox("AI Model", options=["gpt-4o-mini", "gpt-4o", "claude-3-5-sonnet"])
+                
+            if st.button("🤖 Generate Questions via AI", use_container_width=True):
+                if not ai_topic.strip():
+                    st.error("Please enter a Topic / Concept first.")
+                else:
+                    prompt = f"""
+                    Generate exactly {ai_count} questions of the following type:
+                    - Subject: {ai_subject}
+                    - Topic: {ai_topic}
+                    - Question Type: {ai_type}
+                    - Difficulty: {ai_difficulty}
+                    - Recommended Marks: {ai_marks}
+
+                    Ensure any mathematical formulas, variables, equations, or scientific symbols are wrapped in standard LaTeX delimiters (e.g. use $...$ for inline math like $x^2 + y^2 = r^2$, and $$...$$ for block equations).
+
+                    Return the response as a valid JSON list of objects. Each object must have these exact keys:
+                    1. "text": a string containing the question text with proper LaTeX formatting.
+                    2. "marks": an integer indicating the marks (use {ai_marks}).
+
+                    Output ONLY the raw JSON array. Do not wrap the JSON in markdown formatting like ```json or ```, and do not add any comments or introductory text.
+                    """
+                    
+                    with st.spinner("AI is thinking and generating questions..."):
+                        success, response = call_puter_ai(
+                            prompt, 
+                            system_instruction="You are an expert examiner who writes clear, academically rigorous exam questions formatted in LaTeX JSON.",
+                            model=ai_model
+                        )
+                        
+                        if success:
+                            parse_ok, parsed_qs = parse_generated_questions(response)
+                            if parse_ok:
+                                st.session_state.generated_questions = parsed_qs
+                                st.success("Successfully generated questions! Select the ones you want below:")
+                            else:
+                                st.error(f"Failed to parse AI output: {parsed_qs}")
+                                st.text_area("Raw AI Response", value=response, height=150)
+                        else:
+                            st.error(f"AI Generation Failed: {response}")
+                            
+            # If there are generated questions in state, display them
+            if "generated_questions" in st.session_state and st.session_state.generated_questions:
+                selected_indices = []
+                st.markdown("### Generated Questions:")
+                for idx, gq in enumerate(st.session_state.generated_questions):
+                    with st.container(border=True):
+                        # Checkbox for selection
+                        is_selected = st.checkbox(
+                            f"Select Question {idx+1} ({gq.get('marks', ai_marks)} Marks)",
+                            value=True,
+                            key=f"sel_ai_q_{idx}"
+                        )
+                        st.write(gq.get("text", ""))
+                        if is_selected:
+                            selected_indices.append(idx)
+                            
+                if st.button("📥 Add Selected Questions to Composer", use_container_width=True, type="primary"):
+                    for idx in selected_indices:
+                        gq = st.session_state.generated_questions[idx]
+                        st.session_state.questions.append({
+                            "id": st.session_state.next_q_id,
+                            "text": gq.get("text", ""),
+                            "marks": gq.get("marks", ai_marks),
+                            "image_base64": None,
+                            "image_name": None
+                        })
+                        st.session_state.next_q_id += 1
+                    # Clear generated questions from state after adding
+                    st.session_state.generated_questions = []
+                    st.success("Questions added to composer!")
+                    st.rerun()
+
     # B. Composer Section
     st.subheader("📚 Exam Composer")
     
@@ -373,7 +550,7 @@ with col_main:
                 st.markdown("**Preview:**")
                 st.write(q["text"])  # Streamlit auto-renders LaTeX between $ symbols
                 
-            col_m, col_img, col_del = st.columns([1, 2, 1])
+            col_m, col_img, col_del, col_ai = st.columns([1.5, 3, 2, 2])
             with col_m:
                 q["marks"] = st.number_input(
                     "Marks",
@@ -416,6 +593,32 @@ with col_main:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                 if st.button("🗑️ Delete Question", key=f"q_del_{q['id']}", type="secondary", use_container_width=True):
                     questions_to_delete.append(i)
+                    
+            with col_ai:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                puter_token = get_puter_token()
+                btn_ai_enhance = st.button(
+                    "🪄 AI Enhance", 
+                    key=f"q_ai_{q['id']}", 
+                    disabled=not puter_token,
+                    help="Automatically format equations to LaTeX and improve question grammar."
+                )
+                if btn_ai_enhance:
+                    if not q["text"].strip():
+                        st.toast("Question content is empty!")
+                    else:
+                        with st.spinner("AI Enhancing..."):
+                            prompt = f"Format and improve this exam question. Wrap any mathematical symbols, variables, or equations in standard LaTeX notation ($...$). Clean up the grammar. Return ONLY the enhanced question text, without any explanation, intro, or comments.\n\nQuestion to enhance:\n{q['text']}"
+                            success, response = call_puter_ai(
+                                prompt,
+                                system_instruction="You are an expert LaTeX editor. You return only the formatted question with standard LaTeX inline math delimiters, preserving the original question's content."
+                            )
+                            if success:
+                                q["text"] = response.strip()
+                                st.toast("Question enhanced successfully!")
+                                st.rerun()
+                            else:
+                                st.error(f"AI Enhance failed: {response}")
 
     # Perform Deletions
     if questions_to_delete:
