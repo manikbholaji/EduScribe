@@ -803,6 +803,7 @@ with col_main:
                 with st.container(border=True):
                     st.write(preview_latex)
                 
+            col_m, col_img, col_del, col_ai = st.columns([1.5, 3, 2, 2])
             is_subpart_based = q.get("type") in ["Case Study", "Subparts"]
             with col_m:
                 if is_subpart_based:
