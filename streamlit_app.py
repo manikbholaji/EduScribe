@@ -381,6 +381,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 2. DB Status indicators
+database, db_status = get_db_connection()
 if db_status == "online":
     st.markdown('<div class="status-badge online">🟢 Connected to MongoDB Online</div>', unsafe_allow_html=True)
 else:
