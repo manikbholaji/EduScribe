@@ -38,7 +38,16 @@ class OCRService:
         # 1. Encode image to base64
         try:
             ext = image_path.split(".")[-1].lower()
-            mime_type = f"image/{ext}" if ext in ["png", "jpg", "jpeg", "gif", "webp"] else "image/jpeg"
+            if ext in ["jpg", "jpeg"]:
+                mime_type = "image/jpeg"
+            elif ext == "png":
+                mime_type = "image/png"
+            elif ext == "webp":
+                mime_type = "image/webp"
+            elif ext == "gif":
+                mime_type = "image/gif"
+            else:
+                mime_type = "image/jpeg"
             with open(image_path, "rb") as image_file:
                 image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
         except Exception as e:
@@ -89,8 +98,17 @@ class OCRService:
             if response.status_code == 200:
                 response_json = response.json()
                 if "choices" in response_json and len(response_json["choices"]) > 0:
-                    extracted_text = response_json["choices"][0]["message"]["content"]
-                    return True, extracted_text.strip()
+                    extracted_text = response_json["choices"][0]["message"]["content"].strip()
+                    # Clean up any markdown code block wraps (e.g., ```latex ... ```)
+                    if extracted_text.startswith("```"):
+                        lines = extracted_text.splitlines()
+                        if len(lines) >= 2:
+                            if lines[0].startswith("```"):
+                                lines = lines[1:]
+                            if lines[-1].startswith("```"):
+                                lines = lines[:-1]
+                            extracted_text = "\n".join(lines).strip()
+                    return True, extracted_text
                 return False, f"Unexpected API response format: {response_json}"
             else:
                 try:
