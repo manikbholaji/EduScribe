@@ -3,6 +3,7 @@ import sys
 import unittest
 import base64
 from unittest.mock import patch, MagicMock
+from bson.objectid import ObjectId
 
 # Force offscreen execution for PyQt6 and headless test execution
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -159,7 +160,6 @@ class TestEduScribeStreamlit(unittest.TestCase):
         mock_collection.find_one.return_value = mock_doc
         mock_db.exam_papers = mock_collection
         
-        from bson.objectid import ObjectId
         doc = streamlit_app.load_paper_from_mongodb("507f1f77bcf86cd799439011")
         
         self.assertEqual(doc, mock_doc)
