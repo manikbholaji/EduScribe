@@ -1,4 +1,6 @@
 texlive-latex-base
+texlive-latex-recommended
 texlive-latex-extra
 texlive-fonts-recommended
 texlive-fonts-extra
+lmodern
