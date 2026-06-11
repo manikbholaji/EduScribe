@@ -411,6 +411,105 @@ class TestEduScribeStreamlit(unittest.TestCase):
         self.assertIn("Column I", streamlit_app.format_question_to_latex(match_q))
         self.assertIn("L1 & A. R1", streamlit_app.format_question_to_latex(match_q))
 
+    @patch('streamlit_app.PDFGenerator')
+    def test_cbse_board_level_80_marks_compilation(self, mock_generator_class):
+        """Test compiling a full CBSE-style 80-marks question paper structure."""
+        mock_generator = MagicMock()
+        mock_generator.generate_tex.return_value = (True, "Success")
+        mock_generator.compile_to_pdf.return_value = (True, "Output PDF file")
+        mock_generator_class.return_value = mock_generator
+        
+        mock_file = MagicMock()
+        mock_file.read.side_effect = [b"Fake CBSE LaTeX Data", b"Fake CBSE PDF Data"]
+        
+        # Build 38 questions spanning Section A, B, C, D, E totaling exactly 80 marks
+        questions = []
+        
+        # Section A: 18 MCQs (1 mark each)
+        for i in range(18):
+            questions.append({
+                "id": len(questions) + 1,
+                "type": "MCQ",
+                "text": f"MCQ Question {i+1}",
+                "marks": 1,
+                "mcq_options": ["A", "B", "C", "D"]
+            })
+            
+        # Section A: 2 Assertion-Reason (1 mark each)
+        for i in range(2):
+            questions.append({
+                "id": len(questions) + 1,
+                "type": "Assertion-Reason",
+                "ar_assertion": f"Assertion statement {i+1}",
+                "ar_reason": f"Reason statement {i+1}",
+                "marks": 1
+            })
+            
+        # Section B: 5 Very Short Answers (2 marks each)
+        for i in range(5):
+            questions.append({
+                "id": len(questions) + 1,
+                "type": "Standard",
+                "text": f"VSA Question {i+1}",
+                "marks": 2
+            })
+            
+        # Section C: 6 Short Answers (3 marks each)
+        for i in range(6):
+            questions.append({
+                "id": len(questions) + 1,
+                "type": "Standard",
+                "text": f"SA Question {i+1}",
+                "marks": 3
+            })
+            
+        # Section D: 4 Long Answers (5 marks each)
+        for i in range(4):
+            questions.append({
+                "id": len(questions) + 1,
+                "type": "Standard",
+                "text": f"LA Question {i+1}",
+                "marks": 5
+            })
+            
+        # Section E: 3 Case Studies (4 marks each)
+        for i in range(3):
+            questions.append({
+                "id": len(questions) + 1,
+                "type": "Case Study",
+                "text": f"Case Study Context {i+1}",
+                "subparts": [
+                    {"text": "Sub-question 1", "marks": 1},
+                    {"text": "Sub-question 2", "marks": 1},
+                    {"text": "Sub-question 3", "marks": 2}
+                ]
+            })
+            
+        # Verify total marks sum up to 80
+        total_marks = sum(streamlit_app.get_question_marks(q) for q in questions)
+        self.assertEqual(total_marks, 80)
+        self.assertEqual(len(questions), 38)
+        
+        # Test PDF compilation workflow
+        with patch('builtins.open', return_value=MagicMock(__enter__=MagicMock(return_value=mock_file))):
+            with patch('os.path.exists', return_value=True):
+                with patch('os.remove'):
+                    pdf_bytes, tex_bytes, err = streamlit_app.compile_pdf_from_state(
+                        "CBSE School",
+                        "Class X Mathematics Standard",
+                        "3 Hours",
+                        "All questions are compulsory.",
+                        questions,
+                        subject="Mathematics"
+                    )
+                    self.assertEqual(tex_bytes, b"Fake CBSE LaTeX Data")
+                    self.assertIsNone(err)
+                    
+                    # Verify generator calls
+                    mock_generator.generate_tex.assert_called_once()
+                    context = mock_generator.generate_tex.call_args[0][0]
+                    self.assertEqual(context["max_marks"], "80")
+
 if __name__ == '__main__':
     # Remove streamlit module mock before running other tests in future runs
     if 'streamlit' in sys.modules:
