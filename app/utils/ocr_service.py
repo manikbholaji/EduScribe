@@ -7,9 +7,20 @@ class OCRService:
     """
     Handles interaction with OCR APIs (Mathpix).
     """
-    # TODO: Replace with your actual credentials later
-    APP_ID = "YOUR_MATHPIX_APP_ID"
-    APP_KEY = "YOUR_MATHPIX_APP_KEY"
+    # Dynamically load credentials from env vars or streamlit secrets
+    APP_ID = os.environ.get("MATHPIX_APP_ID", "YOUR_MATHPIX_APP_ID")
+    APP_KEY = os.environ.get("MATHPIX_APP_KEY", "YOUR_MATHPIX_APP_KEY")
+    
+    # Try reading from Streamlit secrets if running inside Streamlit
+    try:
+        import streamlit as st
+        if "MATHPIX_APP_ID" in st.secrets:
+            APP_ID = st.secrets["MATHPIX_APP_ID"]
+        if "MATHPIX_APP_KEY" in st.secrets:
+            APP_KEY = st.secrets["MATHPIX_APP_KEY"]
+    except Exception:
+        pass
+
     API_URL = "https://api.mathpix.com/v3/text"
 
     @staticmethod

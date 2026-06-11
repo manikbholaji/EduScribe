@@ -42,3 +42,7 @@ EduScribe.spec
 *.njsproj
 *.sln
 *.sw?
+
+# Streamlit Secrets
+.streamlit/
+secrets.toml

@@ -2,3 +2,6 @@ PyQt6>=6.8.0
 Jinja2>=3.1.4
 requests>=2.32.3
 Pillow>=11.0.0
+streamlit>=1.35.0
+pymongo>=4.0.0
+dnspython>=2.0.0
