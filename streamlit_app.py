@@ -693,31 +693,38 @@ with col_main:
             help="Extracts text/math formulas from images using Mathpix."
         )
         if ocr_file is not None:
-            # We save it temporarily to send it to OCR service
-            with st.spinner("Analyzing image via OCR..."):
-                with tempfile.NamedTemporaryFile(delete=False, suffix="." + ocr_file.name.split(".")[-1]) as tmp:
-                    tmp.write(ocr_file.read())
-                    tmp_path = tmp.name
-                    
-                try:
-                    success, result = OCRService.extract_text(tmp_path)
-                    if success:
-                        st.session_state.questions.append({
-                            "id": st.session_state.next_q_id,
-                            "text": result,
-                            "marks": 5, # default for complex scanned questions
-                            "image_base64": None,
-                            "image_name": None
-                        })
-                        st.session_state.next_q_id += 1
-                        st.success("OCR successfully extracted and added question!")
-                        # Wait a moment, then rerun to clear uploader
-                        st.rerun()
-                    else:
-                        st.error(f"OCR Scan Failed: {result}")
-                finally:
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+            processed_key = f"processed_ocr_{ocr_file.name}_{ocr_file.size}"
+            if processed_key not in st.session_state:
+                # We save it temporarily to send it to OCR service
+                with st.spinner("Analyzing image via OCR..."):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix="." + ocr_file.name.split(".")[-1]) as tmp:
+                        tmp.write(ocr_file.read())
+                        tmp_path = tmp.name
+                        
+                    try:
+                        success, result = OCRService.extract_text(tmp_path)
+                        if success:
+                            st.session_state.questions.append({
+                                "id": st.session_state.next_q_id,
+                                "text": result,
+                                "marks": 5, # default for complex scanned questions
+                                "image_base64": None,
+                                "image_name": None
+                            })
+                            st.session_state.next_q_id += 1
+                            st.session_state[processed_key] = True
+                            st.toast("OCR successfully extracted and added question!")
+                            st.rerun()
+                        else:
+                            st.error(f"OCR Scan Failed: {result}")
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+        else:
+            # Clear processed keys so the user can re-upload the same file if desired
+            keys_to_clear = [k for k in st.session_state.keys() if k.startswith("processed_ocr_")]
+            for k in keys_to_clear:
+                del st.session_state[k]
 
 
 with col_sidebar:
