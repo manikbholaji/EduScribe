@@ -285,6 +285,86 @@ if "next_q_id" not in st.session_state:
 
 # --- COMPILATION HELPER ---
 
+def format_question_to_latex(q):
+    q_type = q.get("type", "Standard")
+    text = q.get("text", "")
+    
+    if q_type == "MCQ":
+        opts = q.get("mcq_options", ["", "", "", ""])
+        latex_opts = []
+        for opt in opts:
+            latex_opts.append(f"\\item {opt}")
+        options_block = "\n".join(latex_opts)
+        return f"{text}\n\\begin{{enumerate}}[label=(\\Alph*)]\n{options_block}\n\\end{{enumerate}}"
+        
+    elif q_type == "Assertion-Reason":
+        assertion = q.get("ar_assertion", "")
+        reason = q.get("ar_reason", "")
+        return (
+            f"\\textbf{{Assertion (A):}} {assertion} \\\\\n"
+            f"\\textbf{{Reason (R):}} {reason} \\\\\n"
+            f"\\textit{{Select the correct option:}}\n"
+            f"\\begin{{enumerate}}[label=(\\Alph*)]\n"
+            f"    \\item Both (A) and (R) are true and (R) is the correct explanation of (A).\n"
+            f"    \\item Both (A) and (R) are true but (R) is not the correct explanation of (A).\n"
+            f"    \\item (A) is true but (R) is false.\n"
+            f"    \\item (A) is false but (R) is true.\n"
+            f"\\end{{enumerate}}"
+        )
+        
+    elif q_type == "Case Study":
+        subparts = q.get("subparts", [])
+        latex_subs = []
+        for sub in subparts:
+            latex_subs.append(f"\\item {sub['text']} \\hfill \\textbf{{[{sub['marks']}]}}")
+        subparts_block = "\n".join(latex_subs)
+        return f"\\textbf{{Case Study:}} \\\\\n{text}\n\\begin{{enumerate}}[label=\\alph*)]\n{subparts_block}\n\\end{{enumerate}}"
+        
+    elif q_type == "Fill in the Blanks":
+        processed_text = text
+        for placeholder in ["[blank]", "[Blank]", "___", "__"]:
+            processed_text = processed_text.replace(placeholder, "\\underline{\\hspace{3cm}}")
+        return processed_text
+        
+    elif q_type == "True/False":
+        return f"{text} \\hfill \\textbf{{(True / False)}}"
+        
+    elif q_type == "Match the Following":
+        pairs = q.get("match_pairs", [])
+        latex_rows = []
+        for idx, p in enumerate(pairs):
+            left = p.get("left", "")
+            right = p.get("right", "")
+            latex_rows.append(f"{idx+1}. {left} & {chr(65 + idx)}. {right} \\\\")
+        rows_block = "\n".join(latex_rows)
+        return (
+            f"Match the items in Column I with Column II: \\\\\n"
+            f"\\begin{{tabular}}{{p{{0.45\\textwidth}} p{{0.45\\textwidth}}}}\n"
+            f"\\textbf{{Column I}} & \\textbf{{Column II}} \\\\\n"
+            f"{rows_block}\n"
+            f"\\end{{tabular}}"
+        )
+        
+    elif q_type == "Subparts":
+        subparts = q.get("subparts", [])
+        latex_subs = []
+        for sub in subparts:
+            latex_subs.append(f"\\item {sub['text']} \\hfill \\textbf{{[{sub['marks']}]}}")
+        subparts_block = "\n".join(latex_subs)
+        return f"{text}\n\\begin{{enumerate}}[label=(\\alph*)]\n{subparts_block}\n\\end{{enumerate}}"
+        
+    elif q_type == "Or Option":
+        or_text = q.get("or_text", "")
+        return f"{text} \\\\\n\\centerline{{\\textbf{{OR}}}} \\\\\n{or_text}"
+        
+    return text
+
+def get_question_marks(q):
+    q_type = q.get("type", "Standard")
+    if q_type in ["Case Study", "Subparts"]:
+        return sum(sub.get("marks", 1) for sub in q.get("subparts", []))
+    return q.get("marks", 1)
+
 def compile_pdf_from_state(school_name, exam_name, time_allowed, instructions, questions, subject=None):
     """Generates LaTeX code, compiles to PDF locally, and returns bytes."""
     temp_files = []
@@ -308,8 +388,8 @@ def compile_pdf_from_state(school_name, exam_name, time_allowed, instructions, q
                 
         latex_questions.append(Question(
             id_num=idx + 1,
-            text=q["text"],
-            marks=q["marks"],
+            text=format_question_to_latex(q),
+            marks=get_question_marks(q),
             image_path=image_path
         ))
         
@@ -577,31 +657,166 @@ with col_main:
         with st.container(border=True):
             st.markdown(f'<div class="q-card-header">Question {q["id"]}</div>', unsafe_allow_html=True)
             
-            # Question Text Input
-            q_text = st.text_area(
-                "Question Content / LaTeX Editor",
-                value=q["text"],
-                key=f"q_text_{q['id']}",
-                placeholder="Type question here (supports LaTeX e.g. $x^2 + y^2 = r^2$)...",
-                height=80
+            # Question Type Selector
+            q_types = ["Standard", "MCQ", "Assertion-Reason", "Case Study", "Fill in the Blanks", "True/False", "Match the Following", "Subparts", "Internal Choice (OR)"]
+            current_type = q.get("type", "Standard")
+            if current_type not in q_types:
+                current_type = "Standard"
+            selected_type = st.selectbox(
+                "Question Type",
+                options=q_types,
+                index=q_types.index(current_type),
+                key=f"q_type_{q['id']}"
             )
-            q["text"] = q_text
-            
+            q["type"] = selected_type
+
+            # Type-specific Input Elements
+            if selected_type == "Standard":
+                q["text"] = st.text_area(
+                    "Question Content / LaTeX Editor",
+                    value=q.get("text", ""),
+                    key=f"q_text_{q['id']}",
+                    placeholder="Type question here (supports LaTeX e.g. $x^2 + y^2 = r^2$)...",
+                    height=80
+                )
+                
+            elif selected_type == "MCQ":
+                q["text"] = st.text_area(
+                    "Question Stem / LaTeX Editor",
+                    value=q.get("text", ""),
+                    key=f"q_text_{q['id']}",
+                    placeholder="Type question stem here...",
+                    height=80
+                )
+                if "mcq_options" not in q or not isinstance(q["mcq_options"], list) or len(q["mcq_options"]) != 4:
+                    q["mcq_options"] = ["", "", "", ""]
+                col_o1, col_o2 = st.columns(2)
+                with col_o1:
+                    q["mcq_options"][0] = st.text_input("Option A", value=q["mcq_options"][0], key=f"q_opt_a_{q['id']}")
+                    q["mcq_options"][1] = st.text_input("Option B", value=q["mcq_options"][1], key=f"q_opt_b_{q['id']}")
+                with col_o2:
+                    q["mcq_options"][2] = st.text_input("Option C", value=q["mcq_options"][2], key=f"q_opt_c_{q['id']}")
+                    q["mcq_options"][3] = st.text_input("Option D", value=q["mcq_options"][3], key=f"q_opt_d_{q['id']}")
+                    
+            elif selected_type == "Assertion-Reason":
+                q["ar_assertion"] = st.text_area("Assertion (A)", value=q.get("ar_assertion", ""), key=f"q_ar_a_{q['id']}", height=60, placeholder="Type Assertion statement...")
+                q["ar_reason"] = st.text_area("Reason (R)", value=q.get("ar_reason", ""), key=f"q_ar_r_{q['id']}", height=60, placeholder="Type Reason statement...")
+                
+            elif selected_type == "Case Study":
+                q["text"] = st.text_area("Passage / Context Text", value=q.get("text", ""), key=f"q_text_{q['id']}", height=100, placeholder="Type case study passage here...")
+                if "subparts" not in q or not isinstance(q["subparts"], list):
+                    q["subparts"] = []
+                st.markdown("<div style='font-size:0.95rem;font-weight:600;margin-top:10px;'>Subparts:</div>", unsafe_allow_html=True)
+                sub_to_del = []
+                for sub_idx, sub in enumerate(q["subparts"]):
+                    col_sub_t, col_sub_m, col_sub_d = st.columns([6, 2, 1])
+                    with col_sub_t:
+                        sub["text"] = st.text_input(f"Subpart {sub_idx+1} Text", value=sub.get("text", ""), key=f"q_sub_t_{q['id']}_{sub_idx}")
+                    with col_sub_m:
+                        sub["marks"] = st.number_input(f"Marks", min_value=1, max_value=20, value=int(sub.get("marks", 1)), key=f"q_sub_m_{q['id']}_{sub_idx}")
+                    with col_sub_d:
+                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                        if st.button("🗑️", key=f"q_sub_del_{q['id']}_{sub_idx}"):
+                            sub_to_del.append(sub_idx)
+                if sub_to_del:
+                    for idx in reversed(sub_to_del):
+                        q["subparts"].pop(idx)
+                    st.rerun()
+                if st.button("➕ Add Subpart", key=f"q_sub_add_{q['id']}", type="secondary"):
+                    q["subparts"].append({"text": "", "marks": 1})
+                    st.rerun()
+                    
+            elif selected_type == "Fill in the Blanks":
+                st.markdown("<div style='color: #2980b9; font-size: 0.85rem; font-weight: 500;'>💡 Tip: Type [blank] where you want to insert a blank line (e.g., 'Gravity is a [blank] force.').</div>", unsafe_allow_html=True)
+                q["text"] = st.text_area(
+                    "Question Content",
+                    value=q.get("text", ""),
+                    key=f"q_text_{q['id']}",
+                    placeholder="Type question with [blank] here...",
+                    height=80
+                )
+                
+            elif selected_type == "True/False":
+                q["text"] = st.text_area(
+                    "Question Content",
+                    value=q.get("text", ""),
+                    key=f"q_text_{q['id']}",
+                    placeholder="Type statement here...",
+                    height=80
+                )
+                
+            elif selected_type == "Match the Following":
+                if "match_pairs" not in q or not isinstance(q["match_pairs"], list):
+                    q["match_pairs"] = []
+                st.markdown("<div style='font-size:0.95rem;font-weight:600;margin-top:10px;'>Match Columns:</div>", unsafe_allow_html=True)
+                pair_to_del = []
+                for pair_idx, pair in enumerate(q["match_pairs"]):
+                    col_p_l, col_p_r, col_p_d = st.columns([4, 4, 1])
+                    with col_p_l:
+                        pair["left"] = st.text_input(f"Column I Row {pair_idx+1}", value=pair.get("left", ""), key=f"q_pair_l_{q['id']}_{pair_idx}")
+                    with col_p_r:
+                        pair["right"] = st.text_input(f"Column II Row {pair_idx+1}", value=pair.get("right", ""), key=f"q_pair_r_{q['id']}_{pair_idx}")
+                    with col_p_d:
+                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                        if st.button("🗑️", key=f"q_pair_del_{q['id']}_{pair_idx}"):
+                            pair_to_del.append(pair_idx)
+                if pair_to_del:
+                    for idx in reversed(pair_to_del):
+                        q["match_pairs"].pop(idx)
+                    st.rerun()
+                if st.button("➕ Add Match Row", key=f"q_pair_add_{q['id']}", type="secondary"):
+                    q["match_pairs"].append({"left": "", "right": ""})
+                    st.rerun()
+                    
+            elif selected_type == "Subparts":
+                q["text"] = st.text_area("Parent Question Text", value=q.get("text", ""), key=f"q_text_{q['id']}", height=80, placeholder="Type main question stem here...")
+                if "subparts" not in q or not isinstance(q["subparts"], list):
+                    q["subparts"] = []
+                st.markdown("<div style='font-size:0.95rem;font-weight:600;margin-top:10px;'>Sub-questions:</div>", unsafe_allow_html=True)
+                sub_to_del = []
+                for sub_idx, sub in enumerate(q["subparts"]):
+                    col_sub_t, col_sub_m, col_sub_d = st.columns([6, 2, 1])
+                    with col_sub_t:
+                        sub["text"] = st.text_input(f"Sub-question {sub_idx+1} Text", value=sub.get("text", ""), key=f"q_sub_t_{q['id']}_{sub_idx}")
+                    with col_sub_m:
+                        sub["marks"] = st.number_input(f"Marks", min_value=1, max_value=20, value=int(sub.get("marks", 1)), key=f"q_sub_m_{q['id']}_{sub_idx}")
+                    with col_sub_d:
+                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                        if st.button("🗑️", key=f"q_sub_del_{q['id']}_{sub_idx}"):
+                            sub_to_del.append(sub_idx)
+                if sub_to_del:
+                    for idx in reversed(sub_to_del):
+                        q["subparts"].pop(idx)
+                    st.rerun()
+                if st.button("➕ Add Sub-question", key=f"q_sub_add_{q['id']}", type="secondary"):
+                    q["subparts"].append({"text": "", "marks": 1})
+                    st.rerun()
+                    
+            elif selected_type == "Or Option":
+                q["text"] = st.text_area("Option A Question Content", value=q.get("text", ""), key=f"q_text_{q['id']}", height=80, placeholder="Type first choice question...")
+                q["or_text"] = st.text_area("Option B Question Content", value=q.get("or_text", ""), key=f"q_or_text_{q['id']}", height=80, placeholder="Type second choice question...")
+
             # Real-time Preview Area
-            if q["text"].strip():
+            preview_latex = format_question_to_latex(q)
+            if preview_latex.strip():
                 st.markdown("<div style='color: #7f8c8d; font-size: 0.85rem; font-weight: 600; margin-top: 5px; margin-bottom: 2px;'>Processed LaTeX Preview:</div>", unsafe_allow_html=True)
                 with st.container(border=True):
-                    st.write(q["text"])
+                    st.write(preview_latex)
                 
-            col_m, col_img, col_del, col_ai = st.columns([1.5, 3, 2, 2])
+            is_subpart_based = q.get("type") in ["Case Study", "Subparts"]
             with col_m:
-                q["marks"] = st.number_input(
-                    "Marks",
-                    min_value=1,
-                    max_value=100,
-                    value=int(q["marks"]),
-                    key=f"q_marks_{q['id']}"
-                )
+                if is_subpart_based:
+                    calculated_marks = sum(sub.get("marks", 1) for sub in q.get("subparts", []))
+                    q["marks"] = calculated_marks
+                    st.markdown(f"<div style='font-size:0.9rem;font-weight:600;margin-top:10px;'>Marks: {calculated_marks}</div>", unsafe_allow_html=True)
+                else:
+                    q["marks"] = st.number_input(
+                        "Marks",
+                        min_value=1,
+                        max_value=100,
+                        value=int(q.get("marks", 1)),
+                        key=f"q_marks_{q['id']}"
+                    )
                 
             with col_img:
                 # If there's an image base64, show the name/option to delete image
@@ -796,7 +1011,7 @@ with col_sidebar:
     st.markdown("### 🖨️ Generate & Export")
     
     # Calculate Total Marks
-    total_marks = sum(q["marks"] for q in st.session_state.questions)
+    total_marks = sum(get_question_marks(q) for q in st.session_state.questions)
     st.metric(label="Total Marks", value=f"{total_marks} Marks")
     
     if st.button("⚙️ Compile Output", use_container_width=True, type="primary"):

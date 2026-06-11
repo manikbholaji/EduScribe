@@ -359,6 +359,58 @@ class TestEduScribeStreamlit(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("Puter API token is missing", err)
 
+    def test_question_types_formatting(self):
+        """Test LaTeX formatting outputs for different question types."""
+        # MCQ
+        mcq_q = {
+            "type": "MCQ",
+            "text": "Choose one",
+            "mcq_options": ["Opt1", "Opt2", "Opt3", "Opt4"]
+        }
+        self.assertIn("Opt1", streamlit_app.format_question_to_latex(mcq_q))
+        self.assertIn("\\begin{enumerate}[label=(\\Alph*)]", streamlit_app.format_question_to_latex(mcq_q))
+        
+        # Assertion-Reason
+        ar_q = {
+            "type": "Assertion-Reason",
+            "ar_assertion": "A statement",
+            "ar_reason": "R reason"
+        }
+        self.assertIn("Assertion (A):", streamlit_app.format_question_to_latex(ar_q))
+        self.assertIn("Reason (R):", streamlit_app.format_question_to_latex(ar_q))
+        
+        # Case Study
+        cs_q = {
+            "type": "Case Study",
+            "text": "A context passage",
+            "subparts": [{"text": "Part A", "marks": 2}, {"text": "Part B", "marks": 3}]
+        }
+        self.assertIn("Case Study:", streamlit_app.format_question_to_latex(cs_q))
+        self.assertIn("Part A", streamlit_app.format_question_to_latex(cs_q))
+        self.assertEqual(streamlit_app.get_question_marks(cs_q), 5)
+        
+        # Fill in the Blanks
+        fib_q = {
+            "type": "Fill in the Blanks",
+            "text": "The [blank] is blue."
+        }
+        self.assertIn("\\underline{\\hspace{3cm}}", streamlit_app.format_question_to_latex(fib_q))
+        
+        # True/False
+        tf_q = {
+            "type": "True/False",
+            "text": "Is this true?"
+        }
+        self.assertIn("(True / False)", streamlit_app.format_question_to_latex(tf_q))
+        
+        # Match the Following
+        match_q = {
+            "type": "Match the Following",
+            "match_pairs": [{"left": "L1", "right": "R1"}, {"left": "L2", "right": "R2"}]
+        }
+        self.assertIn("Column I", streamlit_app.format_question_to_latex(match_q))
+        self.assertIn("L1 & A. R1", streamlit_app.format_question_to_latex(match_q))
+
 if __name__ == '__main__':
     # Remove streamlit module mock before running other tests in future runs
     if 'streamlit' in sys.modules:
