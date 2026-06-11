@@ -713,7 +713,7 @@ with col_main:
                     with col_sub_t:
                         sub["text"] = st.text_input(f"Subpart {sub_idx+1} Text", value=sub.get("text", ""), key=f"q_sub_t_{q['id']}_{sub_idx}")
                     with col_sub_m:
-                        sub["marks"] = st.number_input(f"Marks", min_value=1, max_value=20, value=int(sub.get("marks", 1)), key=f"q_sub_m_{q['id']}_{sub_idx}")
+                        sub["marks"] = st.number_input(f"Marks", min_value=1, max_value=20, value=max(1, int(sub.get("marks", 1))), key=f"q_sub_m_{q['id']}_{sub_idx}")
                     with col_sub_d:
                         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                         if st.button("🗑️", key=f"q_sub_del_{q['id']}_{sub_idx}"):
@@ -779,7 +779,7 @@ with col_main:
                     with col_sub_t:
                         sub["text"] = st.text_input(f"Sub-question {sub_idx+1} Text", value=sub.get("text", ""), key=f"q_sub_t_{q['id']}_{sub_idx}")
                     with col_sub_m:
-                        sub["marks"] = st.number_input(f"Marks", min_value=1, max_value=20, value=int(sub.get("marks", 1)), key=f"q_sub_m_{q['id']}_{sub_idx}")
+                        sub["marks"] = st.number_input(f"Marks", min_value=1, max_value=20, value=max(1, int(sub.get("marks", 1))), key=f"q_sub_m_{q['id']}_{sub_idx}")
                     with col_sub_d:
                         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                         if st.button("🗑️", key=f"q_sub_del_{q['id']}_{sub_idx}"):
@@ -815,7 +815,7 @@ with col_main:
                         "Marks",
                         min_value=1,
                         max_value=100,
-                        value=int(q.get("marks", 1)),
+                        value=max(1, int(q.get("marks", 1))),
                         key=f"q_marks_{q['id']}"
                     )
                 
