@@ -1,78 +1,105 @@
 import requests
 import base64
-import json
 import os
 
 class OCRService:
     """
-    Handles interaction with OCR APIs (Mathpix).
+    Handles interaction with OCR APIs (Puter AI).
     """
-    # Dynamically load credentials from env vars or streamlit secrets
-    APP_ID = os.environ.get("MATHPIX_APP_ID", "YOUR_MATHPIX_APP_ID")
-    APP_KEY = os.environ.get("MATHPIX_APP_KEY", "YOUR_MATHPIX_APP_KEY")
-    
-    # Try reading from Streamlit secrets if running inside Streamlit
-    try:
-        import streamlit as st
-        if "MATHPIX_APP_ID" in st.secrets:
-            APP_ID = st.secrets["MATHPIX_APP_ID"]
-        if "MATHPIX_APP_KEY" in st.secrets:
-            APP_KEY = st.secrets["MATHPIX_APP_KEY"]
-    except Exception:
-        pass
 
-    API_URL = "https://api.mathpix.com/v3/text"
+    @staticmethod
+    def get_token():
+        """Tries to read the Puter token from secrets or environment variables."""
+        try:
+            import streamlit as st
+            if "PUTER_TOKEN" in st.secrets:
+                return st.secrets["PUTER_TOKEN"]
+            elif "puter" in st.secrets and "token" in st.secrets["puter"]:
+                return st.secrets["puter"]["token"]
+        except Exception:
+            pass
+        return os.environ.get("PUTER_TOKEN")
 
     @staticmethod
     def extract_text(image_path):
         """
-        Sends image to API and returns extracted text/latex.
+        Sends image to Puter AI (GPT-4o-mini) and returns extracted text/latex.
         Returns a tuple: (success: bool, content: str)
         """
         if not os.path.exists(image_path):
             return False, "Error: File not found."
 
+        token = OCRService.get_token()
+        if not token:
+            # Fallback option for simulation mode if needed
+            # return OCRService._simulate_api_call(image_path)
+            return False, "Puter API token is missing. Please add `PUTER_TOKEN` to your Streamlit secrets or environment variables."
+
         # 1. Encode image to base64
         try:
+            ext = image_path.split(".")[-1].lower()
+            mime_type = f"image/{ext}" if ext in ["png", "jpg", "jpeg", "gif", "webp"] else "image/jpeg"
             with open(image_path, "rb") as image_file:
                 image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
         except Exception as e:
             return False, f"Error processing image: {str(e)}"
 
-        # 2. Prepare Payload (Configuration for Mathpix)
+        # 2. Prepare Payload for Puter AI (using GPT-4o-mini with multimodal format)
+        url = "https://api.puter.com/puterai/openai/v1/chat/completions"
         headers = {
-            "app_id": OCRService.APP_ID,
-            "app_key": OCRService.APP_KEY,
-            "Content-type": "application/json"
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
         }
         
-        data = {
-            "src": f"data:image/jpeg;base64,{image_base64}",
-            "formats": ["text", "latex_simplified"],
-            "data_options": {
-                "include_asciimath": False
-            }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert OCR engine. Extract all text and questions from the image. "
+                        "Identify any mathematical formulas, variables, equations, or scientific symbols "
+                        "and wrap them in standard LaTeX delimiters (e.g., use $...$ for inline math like "
+                        "$x^2 + y^2 = r^2$, and $$...$$ for block equations). "
+                        "Return ONLY the extracted text/questions. Do not wrap the response in markdown blocks "
+                        "(like ``` or ```json), and do not include conversational text or explanations."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Perform OCR on this image, keeping math formatted in LaTeX."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "temperature": 0.3
         }
 
-        # 3. Send Request (Simulated for Phase 3 dev without keys)
-        # return OCRService._simulate_api_call(image_path) # UNCOMMENT THIS TO TEST WITHOUT KEY
-        
-        # REAL CALL (Will fail without valid keys)
         try:
-            response = requests.post(OCRService.API_URL, json=data, headers=headers, timeout=10)
-            try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
                 response_json = response.json()
-            except ValueError:
-                return False, f"Server Error (Status {response.status_code}): Invalid response from OCR service."
-            
-            if "text" in response_json:
-                return True, response_json["text"]
-            elif "error" in response_json:
-                return False, f"API Error: {response_json['error']}"
+                if "choices" in response_json and len(response_json["choices"]) > 0:
+                    extracted_text = response_json["choices"][0]["message"]["content"]
+                    return True, extracted_text.strip()
+                return False, f"Unexpected API response format: {response_json}"
             else:
-                return False, "Unknown API response."
+                try:
+                    err_msg = response.json().get("error", {}).get("message", "Unknown error")
+                except Exception:
+                    err_msg = response.text
+                return False, f"Puter AI OCR Error (Status {response.status_code}): {err_msg}"
         except Exception as e:
-            return False, f"Connection Error: {str(e)}"
+            return False, f"Connection Failure: {str(e)}"
 
     @staticmethod
     def _simulate_api_call(image_path):

@@ -319,6 +319,46 @@ class TestEduScribeStreamlit(unittest.TestCase):
         self.assertEqual(len(papers), 1)
         self.assertEqual(papers[0]["subject"], "Chemistry")
 
+    @patch('requests.post')
+    @patch('app.utils.ocr_service.OCRService.get_token')
+    @patch('os.path.exists')
+    def test_ocr_service_success(self, mock_exists, mock_get_token, mock_post):
+        """Test OCRService correctly calls Puter AI and returns extracted text."""
+        from app.utils.ocr_service import OCRService
+        mock_exists.return_value = True
+        mock_get_token.return_value = "fake-puter-token"
+        
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "Extracting: $E=mc^2$"}}]
+        }
+        mock_post.return_value = mock_response
+        
+        mock_file = MagicMock()
+        mock_file.read.return_value = b"fake-image-bytes"
+        with patch('builtins.open', return_value=MagicMock(__enter__=MagicMock(return_value=mock_file))):
+            success, text = OCRService.extract_text("C:/dummy_path.png")
+            self.assertTrue(success)
+            self.assertEqual(text, "Extracting: $E=mc^2$")
+            
+            mock_post.assert_called_once()
+            payload = mock_post.call_args[1]["json"]
+            self.assertEqual(payload["model"], "gpt-4o-mini")
+            self.assertEqual(payload["messages"][1]["content"][1]["image_url"]["url"], "data:image/png;base64,ZmFrZS1pbWFnZS1ieXRlcw==")
+
+    @patch('app.utils.ocr_service.OCRService.get_token')
+    @patch('os.path.exists')
+    def test_ocr_service_missing_token(self, mock_exists, mock_get_token):
+        """Test OCRService fails gracefully when Puter token is missing."""
+        from app.utils.ocr_service import OCRService
+        mock_exists.return_value = True
+        mock_get_token.return_value = None
+        
+        success, err = OCRService.extract_text("C:/dummy_path.png")
+        self.assertFalse(success)
+        self.assertIn("Puter API token is missing", err)
+
 if __name__ == '__main__':
     # Remove streamlit module mock before running other tests in future runs
     if 'streamlit' in sys.modules:
