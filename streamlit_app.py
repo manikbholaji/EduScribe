@@ -153,7 +153,7 @@ def save_paper_to_mongodb(paper_id, metadata, questions):
         "time_allowed": metadata["time_allowed"],
         "instructions": metadata["instructions"],
         "questions": questions,
-        "last_saved": datetime.datetime.utcnow()
+        "last_saved": datetime.datetime.now(datetime.UTC)
     }
     
     try:
